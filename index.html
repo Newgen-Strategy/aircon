@@ -155,20 +155,25 @@
 
       <label class="field">
         <span class="lab">Flat roof area for panels (m²)</span>
-        <input type="number" id="roof" value="40" min="0" step="5" />
-        <span class="hint">A flat or low-slope roof you could mount panels on. Leave 0 and it estimates from your floor area.</span>
+        <input type="number" id="roof" value="0" min="0" step="5" />
+        <span class="hint">A flat or low-slope roof you could mount panels on. Leave 0 if none.</span>
+      </label>
+
+      <label class="field">
+        <span class="lab">South-facing pitched roof area (m²)</span>
+        <input type="number" id="roofPitch" value="0" min="0" step="5" />
+        <span class="hint">Only the sloped side facing roughly south. Skip the north-facing slope. Leave 0 if none.</span>
       </label>
 
       <details class="howto">
-        <summary>How to measure this on Google Maps</summary>
+        <summary>How to get these roof numbers</summary>
         <ol>
-          <li>Open Google Maps and search your address.</li>
-          <li>Switch to satellite view, then zoom in until the roof fills the screen.</li>
-          <li>Find the scale bar in the corner (for example 2 m) and use it as a ruler.</li>
-          <li>Estimate the flat section's length and width in metres, then multiply the two.</li>
-          <li>Count only flat or gently sloping areas you could put panels on. Skip steep pitched slopes, and skip the garage unless its roof is flat too.</li>
+          <li>Open Google Maps, search your address, and switch to satellite view.</li>
+          <li>Zoom so the roof is clear and the scale bar in the corner is in shot, then take a screenshot.</li>
+          <li>Paste it into your AI of choice and ask for the roof area and roughly which way the roof faces.</li>
+          <li>Enter flat areas and south-facing sloped areas separately. Skip north-facing slopes.</li>
         </ol>
-        <div class="tip">On a computer you can right-click the roof and choose "Measure distance" for a more exact length.</div>
+        <div class="tip">No measuring by hand. The scale bar lets the AI read the size, and the map being north-up lets it read the direction.</div>
       </details>
 
       <label class="field">
@@ -221,7 +226,7 @@
     <details>
       <summary>What's behind the numbers</summary>
       <p>Each bedroom is assumed to draw about 2.2 kWh of electricity over a 9-hour night (a ~2.5 kW cooling unit at a typical efficiency, cycling roughly a third of the time). "Whole house" scales with floor area instead.</p>
-      <p>The battery is sized to cover the night with ~30% headroom, then rounded to a real-world size. Solar is sized to replace the day's electricity (cooling + a typical household base load + any EV charging) on an average UK summer day, capped by the roof area you entered. A flat roof yields roughly 0.16 kWp per m² once you allow for tilt and spacing.</p>
+      <p>The battery is sized to cover the night with ~30% headroom, then rounded to a real-world size. Solar is sized to replace the day's electricity (cooling + a typical household base load + any EV charging) on an average UK summer day, capped by the roof area you entered. A flat roof yields roughly 0.16 kWp per m² once you allow for tilt and spacing; a south-facing pitched roof yields about 0.18, because the panels sit flush with no gaps between rows.</p>
       <p>Costs use round UK figures: solar ~£1,400/kWp, battery ~£650/kWh, aircon ~£2,000 per room (more for whole-house), EV charger ~£1,000. The range is −15% to +20% around that.</p>
     </details>
   </div>
@@ -255,7 +260,7 @@
   wireToggle("unitToggle", "unit", "data-unit");
   wireToggle("scopeToggle", "scope", "data-scope");
   wireToggle("evToggle", "ev", "data-ev");
-  ["area", "beds", "roof", "miles"].forEach(function (id) { $(id).addEventListener("input", calc); });
+  ["area", "beds", "roof", "roofPitch", "miles"].forEach(function (id) { $(id).addEventListener("input", calc); });
 
   // ---- helpers ----
   function round05(x) { return Math.round(x * 2) / 2; }
@@ -269,8 +274,10 @@
   function calc() {
     var areaM2 = s.unit === "sqft" ? num("area") / 10.764 : num("area");
     var beds = Math.max(1, num("beds"));
-    var roofM2 = Math.max(0, num("roof"));
-    if (roofM2 === 0) roofM2 = areaM2 / 3 * 0.4; // crude: ~40% of footprint flat-ish
+    var flatM2 = Math.max(0, num("roof"));
+    var pitchM2 = Math.max(0, num("roofPitch"));
+    var roofM2 = flatM2 + pitchM2;
+    if (roofM2 === 0) { flatM2 = areaM2 / 3 * 0.4; roofM2 = flatM2; } // crude: ~40% of footprint flat-ish
 
     // overnight cooling electricity (kWh)
     var PER_ROOM = 2.2;
@@ -289,7 +296,7 @@
 
     // solar
     var YIELD = 4.2;                      // kWh/day per kWp, UK summer average
-    var roofKWp = round05(roofM2 * 0.16); // what the entered roof can plausibly carry
+    var roofKWp = round05(flatM2 * 0.16 + pitchM2 * 0.18); // flat ~0.16, south-pitched ~0.18 kWp/m²
     var neededKWp = daily / YIELD;        // array for summer self-sufficiency
     var roofLimited = roofKWp < neededKWp - 0.25;
     // suggest what's needed, but never beyond what the roof can carry
