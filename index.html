@@ -96,6 +96,12 @@
   .howto ol { margin: 9px 0 4px; padding-left: 18px; }
   .howto li { margin: 4px 0; }
   .howto .tip { margin-top: 7px; font-style: italic; }
+  .howto .aiprompt { margin-top: 12px; padding-top: 11px; border-top: 1px dashed var(--line); }
+  .howto .aiprompt .lead { margin-bottom: 8px; }
+  .promptbox { background: #f7f4ee; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
+  .promptbox pre { margin: 0; white-space: pre-wrap; font: 12.5px/1.5 inherit; color: var(--ink); }
+  .promptbox button { margin-top: 9px; padding: 7px 14px; font: 600 12.5px inherit; color: #fff; background: var(--teal); border: none; border-radius: 8px; cursor: pointer; }
+  .promptbox button.copied { background: var(--good); }
   .foot { margin-top: 22px; font-size: 12px; color: var(--dim); line-height: 1.6; }
   .pillbad { color: var(--bad); font-weight: 600; }
   .pillgood { color: var(--good); font-weight: 600; }
@@ -103,6 +109,11 @@
   .headtext { flex: 1 1 auto; min-width: 0; }
   .brand { width: 96px; height: auto; flex: 0 0 auto; }
   @media (max-width: 520px) { .brand { width: 66px; } }
+  .toggle.col { flex-direction: column; }
+  .toggle.col button { text-align: left; }
+  input[type=range] { width: 100%; accent-color: var(--teal); cursor: pointer; margin: 5px 0 12px; }
+  .slabel { font-size: 12px; color: var(--dim); display: flex; justify-content: space-between; margin-top: 4px; }
+  .warn { color: var(--amber); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -122,7 +133,7 @@
     <p class="verdict" id="verdict">…</p>
     <div class="heroStats">
       <div class="heroStat"><div class="k">Overnight cooling</div><div class="v" id="sNight">…<small>kWh</small></div></div>
-      <div class="heroStat"><div class="k">Battery</div><div class="v" id="sBatt">…<small>kWh</small></div></div>
+      <div class="heroStat"><div class="k">Storage</div><div class="v" id="sBatt">…<small>kWh</small></div></div>
       <div class="heroStat"><div class="k">Solar</div><div class="v" id="sSolar">…<small>kWp</small></div></div>
       <div class="heroStat"><div class="k">Roof fits</div><div class="v" id="sRoof">…<small>kWp</small></div></div>
     </div>
@@ -155,32 +166,42 @@
 
       <label class="field">
         <span class="lab">Flat roof area for panels (m²)</span>
-        <input type="number" id="roof" value="0" min="0" step="5" />
-        <span class="hint">A flat or low-slope roof you could mount panels on. Leave 0 if none.</span>
+        <input type="number" id="roof" value="40" min="0" step="5" />
+        <span class="hint">A flat or low-slope roof you could mount panels on. Leave both roof boxes at 0 and it estimates from your floor area.</span>
       </label>
 
       <label class="field">
-        <span class="lab">South-facing pitched roof area (m²)</span>
-        <input type="number" id="roofPitch" value="0" min="0" step="5" />
-        <span class="hint">Only the sloped side facing roughly south. Skip the north-facing slope. Leave 0 if none.</span>
+        <span class="lab">South-facing pitched roof (m²)</span>
+        <input type="number" id="pitch" value="0" min="0" step="5" />
+        <span class="hint">A pitched slope facing roughly south (south-south-west to south-east). Leave 0 if none or unsure.</span>
       </label>
 
       <details class="howto">
-        <summary>How to get these roof numbers</summary>
+        <summary>How to measure this on Google Maps</summary>
         <ol>
-          <li>Open Google Maps, search your address, and switch to satellite view.</li>
-          <li>Zoom so the roof is clear and the scale bar in the corner is in shot, then take a screenshot.</li>
-          <li>Paste it into your AI of choice and ask for the roof area and roughly which way the roof faces.</li>
-          <li>Enter flat areas and south-facing sloped areas separately. Skip north-facing slopes.</li>
+          <li>Open Google Maps and search your address.</li>
+          <li>Switch to satellite view, then zoom in until the roof fills the screen.</li>
+          <li>Find the scale bar in the corner (for example 2 m) and use it as a ruler.</li>
+          <li>Estimate the flat section's length and width in metres, then multiply the two.</li>
+          <li>Do the same for any pitched slope facing roughly south, and put that in the second box. Skip north-facing slopes, and skip the garage unless its roof is flat too.</li>
         </ol>
-        <div class="tip">No measuring by hand. The scale bar lets the AI read the size, and the map being north-up lets it read the direction.</div>
+        <div class="tip">On a computer you can right-click the roof and choose "Measure distance" for a more exact length.</div>
+
+        <div class="aiprompt">
+          <div class="lead">Or let an AI measure it. Screenshot the satellite view with the scale bar showing, upload it to your AI assistant, and paste this:</div>
+          <div class="promptbox">
+            <pre id="roofPrompt">We are measuring roof space suitable for solar panels in the UK. From this Google Maps satellite image (north is up on desktop; on mobile the orientation is shown) and its scale bar, give two areas in square metres: (1) the flat or low-slope roof usable for panels, and (2) the south-facing pitched roof suitable for panels. South-facing can be anything from south-south-west to south-east, it need not face due south. Ignore north-facing pitched roof. This is for a rough model, so estimates are fine.</pre>
+            <button type="button" id="copyPrompt">Copy</button>
+          </div>
+        </div>
       </details>
 
       <label class="field">
         <span class="lab">What do you want to cool at night?</span>
-        <div class="toggle" id="scopeToggle">
+        <div class="toggle" id="scopeToggle" style="flex-wrap:wrap">
           <button data-scope="beds" class="on">Bedrooms</button>
           <button data-scope="house">Whole house</button>
+          <button data-scope="night">Bedrooms, night only</button>
         </div>
       </label>
     </div>
@@ -190,21 +211,42 @@
       <h2><span class="dot" style="background:var(--amber)"></span>Extras</h2>
 
       <label class="field">
-        <span class="lab">Electric car?</span>
+        <span class="lab">An EV you can power the house from?</span>
         <div class="toggle" id="evToggle">
           <button data-ev="no" class="on">No</button>
           <button data-ev="yes">Yes</button>
         </div>
       </label>
 
-      <label class="field" id="milesField" style="display:none">
-        <span class="lab">EV miles per year</span>
-        <input type="number" id="miles" value="8000" min="0" step="500" />
-        <span class="hint">Adds daytime charging load, so the array is sized a little bigger.</span>
-      </label>
+      <div id="evDetail" style="display:none">
+        <label class="field">
+          <span class="lab">Is it V2H compatible?</span>
+          <div class="toggle col" id="v2hToggle">
+            <button data-v2h="have" class="on">Yes, and I have the charger</button>
+            <button data-v2h="install">Yes, but I need to install it</button>
+            <button data-v2h="v2l">No or not sure</button>
+          </div>
+        </label>
+
+        <details class="howto">
+          <summary>What is V2L / V2H?</summary>
+          <p><b>V2L</b> is a socket on the car, about 2 to 3.6 kW, like a posh extension lead. Fine for a bedroom unit or two overnight, not the whole house. Not every EV has it.</p>
+          <p><b>V2H</b> is a bidirectional charger wired into your fuse board. It can run the whole house and turns the car into a home battery. UK install runs roughly £1,500 to £4,000 for an AC unit, and powering your own home needs no grid (G99) approval.</p>
+          <p>Many EVs can do neither yet, and Teslas currently cannot do V2H through third-party chargers. Check your car before relying on it.</p>
+        </details>
+
+        <label class="field">
+          <span class="lab">Hours the car is home in daylight</span>
+          <div class="slabel"><span>Weekday</span><span><b id="wdVal">2</b> h</span></div>
+          <input type="range" id="wd" min="0" max="10" step="1" value="2" />
+          <div class="slabel"><span>Weekend</span><span><b id="weVal">8</b> h</span></div>
+          <input type="range" id="we" min="0" max="10" step="1" value="8" />
+          <span class="hint">The car only refills from the sun while parked and plugged in during daylight. We engineer for the worse of the two days; any shortfall is covered by a small fixed battery.</span>
+        </label>
+      </div>
 
       <div class="chartwrap" style="margin-top:8px">
-        <span class="lab">Battery charge across 24 hours</span>
+        <span class="lab">Store charge across 24 hours</span>
         <svg id="chart" viewBox="0 0 320 130" preserveAspectRatio="none" aria-hidden="true"></svg>
         <div class="legend">
           <span><i style="background:var(--teal)"></i>charge level</span>
@@ -226,7 +268,7 @@
     <details>
       <summary>What's behind the numbers</summary>
       <p>Each bedroom is assumed to draw about 2.2 kWh of electricity over a 9-hour night (a ~2.5 kW cooling unit at a typical efficiency, cycling roughly a third of the time). "Whole house" scales with floor area instead.</p>
-      <p>The battery is sized to cover the night with ~30% headroom, then rounded to a real-world size. Solar is sized to replace the day's electricity (cooling + a typical household base load + any EV charging) on an average UK summer day, capped by the roof area you entered. A flat roof yields roughly 0.16 kWp per m² once you allow for tilt and spacing; a south-facing pitched roof yields about 0.18, because the panels sit flush with no gaps between rows.</p>
+      <p>The battery is sized to cover the night with ~30% headroom, then rounded to a real-world size. Solar is sized to replace the day's electricity (cooling + a typical household base load + any EV charging) on an average UK summer day, capped by the roof area you entered. A flat roof yields roughly 0.16 kWp per m² once you allow for tilt and spacing.</p>
       <p>Costs use round UK figures: solar ~£1,400/kWp, battery ~£650/kWh, aircon ~£2,000 per room (more for whole-house), EV charger ~£1,000. The range is −15% to +20% around that.</p>
     </details>
   </div>
@@ -239,7 +281,7 @@
 <script>
 (function () {
   // ---- state ----
-  var s = { unit: "m2", scope: "beds", ev: "no" };
+  var s = { unit: "m2", scope: "beds", ev: "no", v2h: "have" };
   var $ = function (id) { return document.getElementById(id); };
 
   function num(id) { var v = parseFloat($(id).value); return isFinite(v) ? v : 0; }
@@ -252,7 +294,7 @@
         btns.forEach(function (x) { x.classList.remove("on"); });
         b.classList.add("on");
         s[key] = b.getAttribute(attr);
-        if (key === "ev") $("milesField").style.display = (s.ev === "yes") ? "block" : "none";
+        if (key === "ev") $("evDetail").style.display = (s.ev === "yes") ? "block" : "none";
         calc();
       });
     });
@@ -260,7 +302,8 @@
   wireToggle("unitToggle", "unit", "data-unit");
   wireToggle("scopeToggle", "scope", "data-scope");
   wireToggle("evToggle", "ev", "data-ev");
-  ["area", "beds", "roof", "roofPitch", "miles"].forEach(function (id) { $(id).addEventListener("input", calc); });
+  wireToggle("v2hToggle", "v2h", "data-v2h");
+  ["area", "beds", "roof", "pitch", "wd", "we"].forEach(function (id) { $(id).addEventListener("input", calc); });
 
   // ---- helpers ----
   function round05(x) { return Math.round(x * 2) / 2; }
@@ -275,66 +318,90 @@
     var areaM2 = s.unit === "sqft" ? num("area") / 10.764 : num("area");
     var beds = Math.max(1, num("beds"));
     var flatM2 = Math.max(0, num("roof"));
-    var pitchM2 = Math.max(0, num("roofPitch"));
-    var roofM2 = flatM2 + pitchM2;
-    if (roofM2 === 0) { flatM2 = areaM2 / 3 * 0.4; roofM2 = flatM2; } // crude: ~40% of footprint flat-ish
+    var pitchM2 = Math.max(0, num("pitch"));
+    var roofM2 = flatM2 + pitchM2;                 // for display
+    // flat roof loses area to tilt and row spacing; a south pitch packs denser in-plane
+    var roofKWp = round05(flatM2 * 0.16 + pitchM2 * 0.18);
+    if (roofM2 === 0) {                            // nothing entered: estimate from footprint
+      roofM2 = areaM2 / 3 * 0.4;
+      roofKWp = round05(roofM2 * 0.16);
+    }
 
     // overnight cooling electricity (kWh)
     var PER_ROOM = 2.2;
     var overnight = beds * PER_ROOM;
     if (s.scope === "house") overnight = Math.max(overnight, areaM2 * 0.06);
 
-    // battery
-    var battery = batteryCatalogue(overnight * 1.3);
-    var runtimeH = overnight > 0 ? (battery / (overnight / 9)) : 0;
-
-    // daily summer electricity to support
+    // daytime electricity the solar must also cover (zero when night-only)
     var baseLoad = 6;
-    var dayCool = s.scope === "house" ? areaM2 * 0.05 : beds * 1.5;
-    var evDaily = s.ev === "yes" ? (num("miles") / 365) * 0.30 : 0;
-    var daily = overnight + dayCool + baseLoad + evDaily;
+    var dayCool = s.scope === "house" ? areaM2 * 0.05 : (s.scope === "night" ? 0 : beds * 1.5);
+    var daily = overnight + dayCool + baseLoad;
 
-    // solar
-    var YIELD = 4.2;                      // kWh/day per kWp, UK summer average
-    var roofKWp = round05(flatM2 * 0.16 + pitchM2 * 0.18); // flat ~0.16, south-pitched ~0.18 kWp/m²
-    var neededKWp = daily / YIELD;        // array for summer self-sufficiency
+    // solar (array sized to the day's need, capped by the roof)
+    var YIELD = 4.2;
+    var neededKWp = daily / YIELD;
     var roofLimited = roofKWp < neededKWp - 0.25;
-    // suggest what's needed, but never beyond what the roof can carry
     var solarKWp = round05(Math.min(neededKWp, roofKWp));
     var solarCover = neededKWp > 0 ? Math.min(100, Math.round((solarKWp / neededKWp) * 100)) : 100;
 
+    // ---- storage: a home battery, or the car as the store ----
+    var evOn = s.ev === "yes";
+    var storeKWh, cStore, kitStore = [], warn = "", carCover = 1, topUp = 0;
+    if (!evOn) {
+      storeKWh = batteryCatalogue(overnight * 1.3);
+      cStore = storeKWh * 650;
+      kitStore.push({ ic: "▮", t: storeKWh + " kWh home battery", d: "Sized to run the night with headroom", amt: cStore });
+    } else {
+      // the car is the store; solar must reach it in daylight, the worse day binds
+      var worst = Math.min(num("wd"), num("we"));
+      var hoursNeeded = solarKWp > 0 ? overnight / (0.6 * solarKWp) : 99;
+      carCover = hoursNeeded > 0 ? Math.min(1, worst / hoursNeeded) : 1;
+      topUp = Math.ceil(overnight * (1 - carCover) * 2) / 2; // fixed battery for the gap, to 0.5 kWh
+      var cCharger, chgT, chgD;
+      if (s.v2h === "have") { cCharger = 0; chgT = "Car as the battery (V2H)"; chgD = "Your existing charger runs the house from the car"; }
+      else if (s.v2h === "install") { cCharger = 2500; chgT = "V2H bidirectional charger"; chgD = "AC unit installed; no grid (G99) approval needed for home use"; }
+      else { cCharger = 150; chgT = "Car as the battery (V2L lead)"; chgD = "Check the car actually supports V2L"; if (s.scope === "house") warn = "Note: V2L (about 3.6 kW) cannot carry whole-house peaks. Cool bedrooms only, or step up to V2H."; }
+      var cTop = topUp * 650;
+      cStore = cCharger + cTop;
+      storeKWh = topUp; // the only fixed battery you actually buy
+      kitStore.push({ ic: "⚡", t: chgT, d: chgD + " · car covers ~" + Math.round(carCover * 100) + "% of the night", amt: cCharger });
+      if (topUp > 0) kitStore.push({ ic: "▮", t: topUp + " kWh top-up battery", d: "Covers the nights the car is out in daylight", amt: cTop });
+    }
+
     // ---- costs ----
-    var cAircon = s.scope === "house"
-      ? Math.max(beds * 2000, areaM2 * 130)
-      : beds * 2000;
+    var cAircon = s.scope === "house" ? Math.max(beds * 2000, areaM2 * 130) : beds * 2000;
     var cSolar = solarKWp * 1400;
-    var cBatt = battery * 650;
-    var cEV = s.ev === "yes" ? 1000 : 0;
-    var total = cAircon + cSolar + cBatt + cEV;
+    var total = cAircon + cSolar + cStore;
     var lo = total * 0.85, hi = total * 1.20;
 
     // ---- render hero ----
-    $("verdict").innerHTML =
-      "Yes, a <b>" + battery + " kWh</b> battery runs " +
-      (s.scope === "house" ? "the house" : beds + " bedroom" + (beds > 1 ? "s" : "")) +
-      " of cooling through the night" +
-      (roofLimited
-        ? ", but your roof only carries <b>" + solarKWp + " kWp</b>, about " + solarCover + "% of a self-sufficient array, so the grid tops up the rest."
-        : ", and the solar refills it on a normal summer day.");
+    var scopeWord = s.scope === "house" ? "the whole house"
+      : beds + " bedroom" + (beds > 1 ? "s" : "") + (s.scope === "night" ? " overnight" : "");
+    var storeClause = !evOn
+      ? "on a " + storeKWh + " kWh battery"
+      : (topUp <= 0
+        ? "from your car, which is home enough in daylight to refill from the panels"
+        : "from your car, plus a small " + topUp + " kWh battery for the days it is out");
+    var solarClause = roofLimited
+      ? ", though your roof carries only " + solarKWp + " kWp (about " + solarCover + "%), so the grid makes up the rest."
+      : ", and the solar refills the store on a normal summer day.";
+    $("verdict").innerHTML = "Yes, you can cool " + scopeWord + " through the night " + storeClause + solarClause +
+      (warn ? ' <span class="warn">' + warn + "</span>" : "");
 
     $("sNight").innerHTML = overnight.toFixed(1) + "<small>kWh</small>";
-    $("sBatt").innerHTML = battery + "<small>kWh</small>";
+    $("sBatt").innerHTML = storeKWh + "<small>kWh</small>";
     $("sSolar").innerHTML = solarKWp + "<small>kWp</small>";
     $("sRoof").innerHTML = roofKWp + "<small>kWp</small>";
     $("sCost").textContent = "£" + Math.round(lo / 1000) + "k–£" + Math.round(hi / 1000) + "k";
 
+    // car-hours read-outs
+    if ($("wdVal")) $("wdVal").textContent = num("wd");
+    if ($("weVal")) $("weVal").textContent = num("we");
+
     // ---- render kit list ----
-    var kit = [
-      { ic: "❄", t: "Air conditioning", d: (s.scope === "house" ? "Whole-house / multi-zone system" : beds + " room units (multi-split)"), amt: cAircon },
-      { ic: "▮", t: battery + " kWh battery", d: "Runs the night with headroom (~" + runtimeH.toFixed(0) + " h capacity)", amt: cBatt },
-      { ic: "☀", t: solarKWp + " kWp solar", d: roofLimited ? "Roof-limited to your " + roofM2.toFixed(0) + " m² roof (~" + solarCover + "% of self-sufficient)" : "Sized to refill the daily draw", amt: cSolar }
-    ];
-    if (s.ev === "yes") kit.push({ ic: "⚡", t: "EV charger", d: "7 kW home charger", amt: cEV });
+    var kit = [{ ic: "❄", t: "Air conditioning", d: (s.scope === "house" ? "Whole-house / multi-zone system" : beds + " room units (multi-split)"), amt: cAircon }];
+    kit = kit.concat(kitStore);
+    kit.push({ ic: "☀", t: solarKWp + " kWp solar", d: roofLimited ? "Roof-limited to your " + roofM2.toFixed(0) + " m² roof (~" + solarCover + "% of self-sufficient)" : "Sized to refill the store", amt: cSolar });
 
     $("kitList").innerHTML = kit.map(function (k) {
       return '<div class="kit"><div class="ic">' + k.ic + '</div>' +
@@ -346,11 +413,12 @@
       "£" + (Math.round(lo / 500) * 500).toLocaleString("en-GB") +
       " – £" + (Math.round(hi / 500) * 500).toLocaleString("en-GB");
 
-    drawChart(battery, overnight, solarKWp, YIELD, baseLoad, dayCool, evDaily);
+    var chartCap = evOn ? round05(overnight * 1.3) : storeKWh;
+    drawChart(chartCap, overnight, solarKWp, YIELD, baseLoad, dayCool);
   }
 
   // ---- 24h state-of-charge sparkline ----
-  function drawChart(battery, overnight, solarKWp, YIELD, baseLoad, dayCool, evDaily) {
+  function drawChart(battery, overnight, solarKWp, YIELD, baseLoad, dayCool) {
     var W = 320, H = 130, padB = 18, padT = 10;
     var hours = 9, drainPerH = overnight / hours;
     var dayStart = 5, dayEnd = 21, dayLen = dayEnd - dayStart;
@@ -364,7 +432,7 @@
     var shapeSum = 0; for (var h = 0; h < 24; h++) shapeSum += gen(h);
     var genScale = shapeSum > 0 ? yieldDay / shapeSum : 0;
     var baseH = baseLoad / 24;                   // household base load, all day
-    var dayLoadH = (dayCool + evDaily) / dayLen; // daytime cooling + EV, daylight only
+    var dayLoadH = dayCool / dayLen;             // daytime cooling, daylight only
 
     var pts = [battery], soc = battery; // 10pm: full, before any drain
     for (var i = 0; i < 24; i++) {
@@ -395,6 +463,25 @@
       '<text x="' + (plotW - 30) + '" y="' + (H - 5) + '" font-size="9" fill="var(--dim)">10pm</text>';
     $("chart").innerHTML = svg;
   }
+
+  // copy the roof-measuring prompt
+  var cp = $("copyPrompt");
+  if (cp) cp.addEventListener("click", function () {
+    var node = $("roofPrompt"), text = node.innerText;
+    function done() {
+      cp.textContent = "Copied"; cp.classList.add("copied");
+      setTimeout(function () { cp.textContent = "Copy"; cp.classList.remove("copied"); }, 1500);
+    }
+    function fallback() {
+      var r = document.createRange(); r.selectNodeContents(node);
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      try { document.execCommand("copy"); done(); } catch (e) {}
+      sel.removeAllRanges();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else { fallback(); }
+  });
 
   calc();
 })();
